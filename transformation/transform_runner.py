@@ -1,48 +1,39 @@
-import os
 import subprocess
-import logging
-import yaml
-
-# Load pipeline config
-with open("config/pipeline_config.yaml", "r") as f:
-    pipeline_cfg = yaml.safe_load(f)
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("TransformRunner")
+import os
+from logging_audit.audit_logger import AuditLogger
+from logging_audit.error_handler import ErrorHandler
+from lineage.lineage_logger import LineageLogger
 
 class TransformRunner:
-    def __init__(self):
-        self.dbt_project_dir = pipeline_cfg["transformation"]["dbt_project_dir"]
-        self.models = pipeline_cfg["transformation"]["models"]
+    """
+    Runs dbt transformations (staging, star, snowflake).
+    """
 
-    def run_dbt_command(self, command: str):
-        """Run a dbt command inside the project directory."""
+    def __init__(self, project_dir: str, profiles_dir: str, s3_bucket: str):
+        self.project_dir = project_dir
+        self.profiles_dir = profiles_dir
+        self.logger = AuditLogger()
+        self.lineage_logger = LineageLogger(s3_bucket)
+
+    @ErrorHandler.retry_on_failure
+    def run(self, target: str = "dev"):
+        self.logger.log("transform_runner", f"Starting dbt run for target={target}")
+        
         try:
-            logger.info(f"▶️ Running dbt command: {command}")
             subprocess.run(
-                command,
-                cwd=self.dbt_project_dir,
-                shell=True,
+                ["dbt", "run", f"--profiles-dir={self.profiles_dir}", f"--project-dir={self.project_dir}", f"--target={target}"],
                 check=True
             )
-            logger.info("✅ dbt command completed successfully")
+            self.logger.log("transform_runner", "dbt run completed successfully.")
+
+            self.lineage_logger.log_lineage(
+                dataset_name="warehouse_models",
+                operation="transform",
+                source="staging",
+                target="analytics",
+                extra_info={"dbt_project": self.project_dir, "target": target}
+            )
+
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ dbt command failed: {e}")
+            self.logger.log("transform_runner", f"dbt run failed: {str(e)}")
             raise
-
-    def run_full_transform(self):
-        """Run dbt transformations for staging, marts, star/snowflake schemas."""
-        for model in self.models:
-            logger.info(f"⚡ Transforming model group: {model}")
-            self.run_dbt_command(f"dbt run --select {model}")
-
-    def run_tests(self):
-        """Run dbt tests on all models."""
-        logger.info("🧪 Running dbt tests...")
-        self.run_dbt_command("dbt test")
-
-if __name__ == "__main__":
-    runner = TransformRunner()
-    runner.run_full_transform()
-    runner.run_tests()
-
