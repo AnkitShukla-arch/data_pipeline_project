@@ -1,1 +1,12 @@
+aws:
+  access_key_id: "YOUR_AWS_ACCESS_KEY"
+  secret_access_key: "YOUR_AWS_SECRET_KEY"
+  region: "us-east-1"
+  s3_bucket: "your-pipeline-bucket"
+  redshift:
+    cluster_id: "your-cluster-id"
+    database: "your-database"
+    user: "your-username"
+    password: "your-password"
+    port: 5439
 
