@@ -1,4 +1,20 @@
 pipeline:
   max_file_size_mb: 2000
   allowed_formats: ["csv", "json", "parquet"]
+  
+ingestion:
+  batch:
+    source_format: ["csv", "json", "parquet"]
+    s3_target: "s3://your-pipeline-bucket/raw/"
+  streaming:
+    kafka_bootstrap_servers: "localhost:9092"
+    kafka_topic: "raw-events"
+    s3_target: "s3://your-pipeline-bucket/streaming/"
+
+transformation:
+  dbt_project_dir: "./transformation/dbt_project"
+  models: ["staging", "marts", "star_schema", "snowflake_schema"]
+
+warehouse:
+  schema_strategy: "star"   # or "snowflake"
 
