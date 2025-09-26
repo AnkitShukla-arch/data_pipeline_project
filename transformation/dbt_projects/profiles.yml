@@ -1,1 +1,12 @@
+default:
+  target: dev
+  outputs:
+    dev:
+      type: redshift
+      host: your-redshift-cluster.amazonaws.com
+      user: your_username
+      password: your_password
+      port: 5439
+      dbname: your_db
+      schema: public
 
