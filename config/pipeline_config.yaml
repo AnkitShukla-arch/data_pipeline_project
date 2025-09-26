@@ -1,1 +1,4 @@
+pipeline:
+  max_file_size_mb: 2000
+  allowed_formats: ["csv", "json", "parquet"]
 
