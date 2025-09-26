@@ -1,1 +1,48 @@
+# AWS + Cloud
+boto3
+s3fs
+awscli
+
+# Data ingestion + streaming
+pandas
+pyarrow
+fastparquet
+kafka-python
+confluent-kafka
+
+# Validation
+pydantic
+great-expectations
+
+# Data transformation
+dbt-core
+dbt-redshift
+
+# Database / Warehouse
+psycopg2-binary   # Postgres/Redshift driver
+sqlalchemy
+
+# ML + Monitoring
+scikit-learn
+mlflow
+sagemaker
+alibi-detect   # drift detection
+
+# Workflow orchestration
+apache-airflow
+prefect
+
+# Observability
+prometheus-client
+opentelemetry-api
+opentelemetry-sdk
+
+# API + Query
+llama-index
+fastapi
+uvicorn
+
+# Testing
+pytest
+pytest-mock
 
