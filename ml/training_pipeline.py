@@ -1,20 +1,24 @@
 # ml/training_pipeline.py
 import os
 import joblib
-import pandas as pd
+import uuid
 from datetime import datetime
+
+import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import accuracy_score
 
 from logging_audit.audit_logger import AuditLogger
 from logging_audit.error_handler import ErrorHandler
 from lineage.metadata_tracker import MetadataTracker
+from ml.model_registry import ModelRegistry
 
 # Initialize helpers
 audit_logger = AuditLogger()
 error_handler = ErrorHandler()
 metadata_tracker = MetadataTracker()
+model_registry = ModelRegistry()
 
 MODEL_DIR = "artifacts/models"
 os.makedirs(MODEL_DIR, exist_ok=True)
@@ -22,88 +26,77 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 
 class TrainingPipeline:
     """
-    Industry-level ML training pipeline:
-    - Reads ingested & transformed data
-    - Trains model
-    - Logs audit + errors
-    - Stores metadata/lineage
+    Industry-level Training Pipeline:
+    - Trains ML models
+    - Tracks lineage + metadata
+    - Registers models in ModelRegistry
     """
 
-    def __init__(self, data_path: str, target_column: str):
-        self.data_path = data_path
-        self.target_column = target_column
-        self.model = None
-        self.model_version = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    def __init__(self, data: pd.DataFrame, target_col: str):
+        self.data = data
+        self.target_col = target_col
 
     @error_handler.handle_errors
-    def load_data(self):
-        audit_logger.log_event("LOAD_DATA", f"Loading data from {self.data_path}")
-        df = pd.read_csv(self.data_path)
-        if self.target_column not in df.columns:
-            raise ValueError(f"Target column '{self.target_column}' not in dataset")
-        return df
+    def run(self):
+        audit_logger.log_event("TRAINING_START", f"Training pipeline started with target: {self.target_col}")
 
-    @error_handler.handle_errors
-    def preprocess(self, df: pd.DataFrame):
-        audit_logger.log_event("PREPROCESS", "Splitting train/test data")
-        X = df.drop(columns=[self.target_column])
-        y = df[self.target_column]
-        return train_test_split(X, y, test_size=0.2, random_state=42)
+        # Split dataset
+        X = self.data.drop(columns=[self.target_col])
+        y = self.data[self.target_col]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    @error_handler.handle_errors
-    def train_model(self, X_train, y_train):
-        audit_logger.log_event("TRAIN_MODEL", "Training RandomForestClassifier")
+        # Train model
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
-        self.model = model
-        return model
 
-    @error_handler.handle_errors
-    def evaluate_model(self, model, X_test, y_test):
-        audit_logger.log_event("EVALUATE_MODEL", "Evaluating model performance")
+        # Evaluate
         y_pred = model.predict(X_test)
         acc = accuracy_score(y_test, y_pred)
-        report = classification_report(y_test, y_pred, output_dict=True)
 
-        audit_logger.log_event("EVALUATION_REPORT", f"Accuracy: {acc:.4f}")
+        audit_logger.log_event("TRAINING_COMPLETE", f"Model trained with accuracy: {acc:.4f}")
+
+        # Save model
+        version = datetime.utcnow().strftime("%Y%m%d%H%M%S") + "_" + str(uuid.uuid4())[:8]
+        model_path = os.path.join(MODEL_DIR, f"model_{version}.pkl")
+        joblib.dump(model, model_path)
+
+        # Metadata
+        metadata = {
+            "version": version,
+            "model_type": "RandomForestClassifier",
+            "features": list(X.columns),
+            "target": self.target_col,
+            "accuracy": acc,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
         metadata_tracker.store_metadata(
-            entity_name="Model",
-            version=self.model_version,
-            attributes={
-                "accuracy": acc,
-                "evaluation_report": report,
-                "trained_on": datetime.utcnow().isoformat(),
-            },
+            entity_name="TrainingPipeline",
+            version=version,
+            attributes=metadata,
         )
-        return acc, report
 
-    @error_handler.handle_errors
-    def save_model(self):
-        if self.model is None:
-            raise RuntimeError("No model trained to save")
-
-        model_path = os.path.join(MODEL_DIR, f"model_{self.model_version}.pkl")
-        joblib.dump(self.model, model_path)
-
-        audit_logger.log_event("SAVE_MODEL", f"Model saved at {model_path}")
-        metadata_tracker.store_metadata(
-            entity_name="Model",
-            version=self.model_version,
-            attributes={"path": model_path},
+        # Register model in registry
+        registry_entry = model_registry.register_model(
+            model_path=model_path,
+            metrics={"accuracy": acc},
+            version=version,
         )
-        return model_path
 
-    def run(self):
-        df = self.load_data()
-        X_train, X_test, y_train, y_test = self.preprocess(df)
-        model = self.train_model(X_train, y_train)
-        self.evaluate_model(model, X_test, y_test)
-        model_path = self.save_model()
-        return model_path
+        audit_logger.log_event("MODEL_REGISTERED", f"Model {version} registered successfully.")
+
+        return model, registry_entry
 
 
 if __name__ == "__main__":
-    pipeline = TrainingPipeline(data_path="data/processed/clean_data.csv", target_column="target")
-    model_path = pipeline.run()
-    print(f"✅ Training complete. Model stored at: {model_path}")
+    # Example synthetic dataset
+    df = pd.DataFrame({
+        "feature1": [1, 2, 3, 4, 5, 6, 7, 8],
+        "feature2": [5, 6, 7, 8, 9, 10, 11, 12],
+        "target":   [0, 1, 0, 1, 0, 1, 0, 1]
+    })
 
+    pipeline = TrainingPipeline(df, target_col="target")
+    model, registry_entry = pipeline.run()
+
+    print("Model trained and registered:", registry_entry)
