@@ -1,22 +1,32 @@
+import json
+import logging
 import pandas as pd
-from logging_audit.audit_logger import log_info, log_error
+from pydantic import BaseModel, ValidationError
+from typing import List, Dict, Any
+
+logger = logging.getLogger("schema_validator")
 
 
-def validate_schema(df: pd.DataFrame, expected_schema: dict) -> bool:
-    """
-    Validate dataframe against expected schema.
-    Example schema:
-        {"id": "int64", "name": "object", "age": "int64"}
-    """
+class SchemaValidator:
+    def __init__(self, schema_path: str):
+        with open(schema_path, "r") as f:
+            self.schema = json.load(f)
 
-    for col, dtype in expected_schema.items():
-        if col not in df.columns:
-            log_error(f"Missing column: {col}")
-            return False
-        if str(df[col].dtype) != dtype:
-            log_error(f"Column {col} expected {dtype}, got {df[col].dtype}")
-            return False
+        # Dynamically build pydantic model from schema
+        fields: Dict[str, Any] = {
+            col["name"]: (eval(col["type"]), ...)
+            for col in self.schema["fields"]
+        }
+        self.Model = type("DynamicSchema", (BaseModel,), fields)
 
-    log_info("Schema validation passed ✅")
-    return True
+    def validate(self, df: pd.DataFrame) -> pd.DataFrame:
+        valid_rows = []
+        for _, row in df.iterrows():
+            try:
+                self.Model(**row.to_dict())
+                valid_rows.append(row)
+            except ValidationError as e:
+                logger.warning(f"Row validation failed: {e}")
 
+        logger.info(f"Validated dataframe: {len(valid_rows)} / {len(df)} rows passed")
+        return pd.DataFrame(valid_rows)
