@@ -1,1 +1,25 @@
+name: data_pipeline_project
+version: "1.0"
+config-version: 2
+
+profile: default
+
+source-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_modules"]
+
+models:
+  data_pipeline_project:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+    star_schema:
+      +schema: star
+      +materialized: table
+    snowflake_schema:
+      +schema: snowflake
+      +materialized: table
 
