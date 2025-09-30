@@ -54,8 +54,8 @@ It ingests data from multiple sources, processes it in real-time, and delivers i
 
 ```bash
 # Clone the repo
-git clone https://github.com/<your_username>/<your_repo>.git
-cd <your_repo>
+git clone https://github.com/<AnkitShukla-arch>/<data_pipeline_project>.git
+cd <data_pipeline_project>
 
 # Build & run with Docker
 docker-compose up --build
