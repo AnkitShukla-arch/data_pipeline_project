@@ -57,9 +57,13 @@ flowchart LR
 ## 🔮 Advanced Features
 
 -📡 Automated alerts via Slack/Email
+
 -🔁 Continuous Integration & Deployment with GitHub Actions
+
 -🧪 Unit & integration test coverage
+
 -📈 Observability with Prometheus + Grafana
+
 -☁️ Multi-cloud support (AWS, GCP, Azure ready)
 
 -----
@@ -67,8 +71,11 @@ flowchart LR
 🛣 Roadmap
 
 -Kubernetes orchestration support
+
 -ELK stack integration for log analytics
+
 -Real-time REST API layer
+
 -Expand anomaly detection models
 
 -----
