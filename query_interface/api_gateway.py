@@ -1,14 +1,10 @@
-import os
-import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.engine import create_engine
-from llama_index.core import SQLDatabase, VectorStoreIndex, ServiceContext
-from llama_index.core.query_engine import NLSQLTableQueryEngine
-from llama_index.llms.openai import OpenAI
+from query_interface.llama_connector import LlamaConnector
+import logging
 
 # ========================
-# Logging setup
+# Logging
 # ========================
 logging.basicConfig(
     level=logging.INFO,
@@ -17,74 +13,40 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ========================
-# FastAPI init
+# FastAPI app + request model
 # ========================
-app = FastAPI(title="LlamaIndex Query API", version="1.0")
+app = FastAPI(title="LlamaIndex Query API")
 
-# ========================
-# Request schema
-# ========================
 class QueryRequest(BaseModel):
     question: str
 
 # ========================
-# Load configs (from env vars)
-# ========================
-DB_USER = os.getenv("AWS_REDSHIFT_USER", "admin")
-DB_PASS = os.getenv("AWS_REDSHIFT_PASS", "password")
-DB_HOST = os.getenv("AWS_REDSHIFT_HOST", "localhost")
-DB_PORT = os.getenv("AWS_REDSHIFT_PORT", "5439")
-DB_NAME = os.getenv("AWS_REDSHIFT_DB", "analytics")
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is missing in environment variables.")
-
-# ========================
-# Database connection
+# Init connector once
 # ========================
 try:
-    connection_uri = (
-        f"redshift+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    )
-    engine = create_engine(connection_uri)
-    sql_database = SQLDatabase(engine)
-    logger.info("✅ Connected to AWS Redshift successfully.")
+    llama_connector = LlamaConnector()
+    logger.info("✅ LlamaConnector initialized in API.")
 except Exception as e:
-    logger.error(f"❌ Failed to connect to Redshift: {e}")
-    raise
+    logger.error(f"❌ Failed to init LlamaConnector in API: {e}")
+    llama_connector = None
+
 
 # ========================
-# LlamaIndex setup
+# Routes
 # ========================
-llm = OpenAI(api_key=OPENAI_API_KEY, model="gpt-4")
-service_context = ServiceContext.from_defaults(llm=llm)
+@app.get("/")
+def root():
+    return {"message": "Welcome to the LlamaIndex Query API 🚀"}
 
-try:
-    query_engine = NLSQLTableQueryEngine(
-        sql_database=sql_database,
-        service_context=service_context,
-        tables=None,  # Use all tables by default
-        synthesize_response=True
-    )
-    logger.info("✅ LlamaIndex query engine initialized.")
-except Exception as e:
-    logger.error(f"❌ Failed to initialize query engine: {e}")
-    raise
 
-# ========================
-# API endpoint
-# ========================
-@app.post("/nl_query")
-async def natural_language_query(req: QueryRequest):
+@app.post("/query")
+def run_query(req: QueryRequest):
+    """Run NL query against Redshift via LlamaIndex."""
+    if not llama_connector:
+        raise HTTPException(status_code=500, detail="LlamaConnector not available.")
     try:
-        logger.info(f"📥 Received query: {req.question}")
-        response = query_engine.query(req.question)
-        return {
-            "question": req.question,
-            "answer": str(response)
-        }
+        result = llama_connector.run_query(req.question)
+        return {"query": req.question, "result": result}
     except Exception as e:
         logger.error(f"❌ Query failed: {e}")
-        raise HTTPException(status_code=500, detail="Query execution failed.")
+        raise HTTPException(status_code=500, detail=str(e))
