@@ -1,84 +1,90 @@
-
-# query_interface/api_gateway.py
-
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
-import psycopg2
-import yaml
-import logging
 import os
+import logging
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.engine import create_engine
+from llama_index.core import SQLDatabase, VectorStoreIndex, ServiceContext
+from llama_index.core.query_engine import NLSQLTableQueryEngine
+from llama_index.llms.openai import OpenAI
 
-# Load configs
-CONFIG_PATH = os.path.join("config", "aws_config.yaml")
-with open(CONFIG_PATH, "r") as f:
-    config = yaml.safe_load(f)
-
-DB_CONFIG = config["redshift"]
-
-# Logging
+# ========================
+# Logging setup
+# ========================
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - [%(levelname)s] - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# FastAPI app
-app = FastAPI(
-    title="Data Pipeline Query API",
-    description="Industry-level API Gateway for querying Redshift Warehouse",
-    version="1.0.0"
-)
+# ========================
+# FastAPI init
+# ========================
+app = FastAPI(title="LlamaIndex Query API", version="1.0")
 
+# ========================
+# Request schema
+# ========================
 class QueryRequest(BaseModel):
-    sql: str
+    question: str
 
-def get_connection():
+# ========================
+# Load configs (from env vars)
+# ========================
+DB_USER = os.getenv("AWS_REDSHIFT_USER", "admin")
+DB_PASS = os.getenv("AWS_REDSHIFT_PASS", "password")
+DB_HOST = os.getenv("AWS_REDSHIFT_HOST", "localhost")
+DB_PORT = os.getenv("AWS_REDSHIFT_PORT", "5439")
+DB_NAME = os.getenv("AWS_REDSHIFT_DB", "analytics")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY is missing in environment variables.")
+
+# ========================
+# Database connection
+# ========================
+try:
+    connection_uri = (
+        f"redshift+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
+    engine = create_engine(connection_uri)
+    sql_database = SQLDatabase(engine)
+    logger.info("✅ Connected to AWS Redshift successfully.")
+except Exception as e:
+    logger.error(f"❌ Failed to connect to Redshift: {e}")
+    raise
+
+# ========================
+# LlamaIndex setup
+# ========================
+llm = OpenAI(api_key=OPENAI_API_KEY, model="gpt-4")
+service_context = ServiceContext.from_defaults(llm=llm)
+
+try:
+    query_engine = NLSQLTableQueryEngine(
+        sql_database=sql_database,
+        service_context=service_context,
+        tables=None,  # Use all tables by default
+        synthesize_response=True
+    )
+    logger.info("✅ LlamaIndex query engine initialized.")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize query engine: {e}")
+    raise
+
+# ========================
+# API endpoint
+# ========================
+@app.post("/nl_query")
+async def natural_language_query(req: QueryRequest):
     try:
-        return psycopg2.connect(
-            dbname=DB_CONFIG["database"],
-            user=DB_CONFIG["user"],
-            password=DB_CONFIG["password"],
-            host=DB_CONFIG["host"],
-            port=DB_CONFIG["port"],
-        )
+        logger.info(f"📥 Received query: {req.question}")
+        response = query_engine.query(req.question)
+        return {
+            "question": req.question,
+            "answer": str(response)
+        }
     except Exception as e:
-        logger.error(f"DB Connection failed: {e}")
-        raise HTTPException(status_code=500, detail="Database connection error")
-
-@app.post("/query")
-def run_query(request: QueryRequest):
-    """
-    Run a custom SQL query on the warehouse.
-    """
-    conn = None
-    try:
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute(request.sql)
-        
-        # Try to fetch results (only for SELECT)
-        if request.sql.strip().lower().startswith("select"):
-            rows = cur.fetchall()
-            cols = [desc[0] for desc in cur.description]
-            result = [dict(zip(cols, row)) for row in rows]
-        else:
-            conn.commit()
-            result = {"message": "Query executed successfully"}
-        
-        cur.close()
-        return {"status": "success", "data": result}
-
-    except Exception as e:
-        logger.error(f"Query execution failed: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-    finally:
-        if conn:
-            conn.close()
-
-@app.get("/health")
-def health_check():
-    """
-    Health check endpoint for monitoring.
-    """
-    return {"status": "ok"}
+        logger.error(f"❌ Query failed: {e}")
+        raise HTTPException(status_code=500, detail="Query execution failed.")
