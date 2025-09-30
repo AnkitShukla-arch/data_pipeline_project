@@ -52,6 +52,8 @@ flowchart LR
     C --> D[Database]
     D --> F[ML Model for Anomaly Detection]
 
+-----
+
 ## 🔮 Advanced Features
 
 -📡 Automated alerts via Slack/Email
@@ -59,19 +61,23 @@ flowchart LR
 -🧪 Unit & integration test coverage
 -📈 Observability with Prometheus + Grafana
 -☁️ Multi-cloud support (AWS, GCP, Azure ready)
-----
+
+-----
+
 🛣 Roadmap
 
 -Kubernetes orchestration support
 -ELK stack integration for log analytics
 -Real-time REST API layer
 -Expand anomaly detection models
-----
+
+-----
+
 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome!
 Open an issue or submit a PR to collaborate.
-----
+
 
 📬 Contact
 
