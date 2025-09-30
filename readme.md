@@ -1,14 +1,14 @@
-# 🚀 <Your Project Name>: Next-Gen Data Pipeline & Analytics System
+# 🚀 <Llama_data_pipeline>: Next-Gen Data Pipeline & Analytics System
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)]()
-[![CI/CD](https://github.com/<your_username>/<your_repo>/actions/workflows/ci.yml/badge.svg)]()
+[![CI/CD](https://github.com/<AnkitShukla-arch>/<data_pipeline_project>/actions/workflows/ci.yml/badge.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 
 ---
 
 ## 📖 Overview
-> **<Your Project Name>** is a futuristic, scalable, and resilient **data pipeline & monitoring system**.  
+> **<Llama_data_pipeline>** is a futuristic, scalable, and resilient **data pipeline & monitoring system**.  
 It ingests data from multiple sources, processes it in real-time, and delivers insights via interactive dashboards — with built-in **AI-powered anomaly detection**.
 
 ---
@@ -17,7 +17,6 @@ It ingests data from multiple sources, processes it in real-time, and delivers i
 - 🔍 Real-time data ingestion from APIs, streams, and files  
 - ⚡ Scalable pipeline using **Kafka + Spark**  
 - 🔒 Automated data validation & encryption  
-- 📊 Interactive dashboards (**Streamlit + Plotly**)  
 - 🤖 ML-based anomaly detection  
 - ☁️ Cloud-native deployment (Docker + optional Kubernetes)  
 
@@ -60,21 +59,23 @@ flowchart LR
 -🧪 Unit & integration test coverage
 -📈 Observability with Prometheus + Grafana
 -☁️ Multi-cloud support (AWS, GCP, Azure ready)
-
+----
 🛣 Roadmap
 
 -Kubernetes orchestration support
 -ELK stack integration for log analytics
 -Real-time REST API layer
 -Expand anomaly detection models
-
+----
 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome!
 Open an issue or submit a PR to collaborate.
+----
 
 📬 Contact
 
 Author: ANKIT SHUKLA
+
 📧 Email: shuklaankit93268@gmail.com
 
