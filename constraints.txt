@@ -1,0 +1,12 @@
+# Airflow + provider constraints
+apache-airflow==2.9.2
+apache-airflow-providers-amazon==8.16.0
+apache-airflow-providers-postgres==5.10.0
+apache-airflow-providers-mysql==5.9.0
+
+# Pin Airflow's core dependencies
+alembic==1.13.1
+flask==2.3.3
+jinja2==3.1.4
+werkzeug==3.0.3
+gunicorn==21.2.0
