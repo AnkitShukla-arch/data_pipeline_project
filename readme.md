@@ -66,7 +66,7 @@ flowchart LR
 
 -☁️ Multi-cloud support (AWS, GCP, Azure ready)
 
------
+---
 
 🛣 Roadmap
 
@@ -78,7 +78,7 @@ flowchart LR
 
 -Expand anomaly detection models
 
------
+---
 
 🤝 Contributing
 
