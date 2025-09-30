@@ -1,75 +1,67 @@
-# query_interface/llama_connector.py
-
 import os
-import yaml
-import psycopg2
 import logging
-from llama_index import SQLDatabase, ServiceContext, VectorStoreIndex
-from llama_index.llms import OpenAI
-from llama_index.query_engine import NLSQLTableQueryEngine
+from sqlalchemy.engine import create_engine
+from llama_index.core import SQLDatabase, ServiceContext
+from llama_index.core.query_engine import NLSQLTableQueryEngine
+from llama_index.llms.openai import OpenAI
 
-# Load configs
-CONFIG_PATH = os.path.join("config", "aws_config.yaml")
-with open(CONFIG_PATH, "r") as f:
-    config = yaml.safe_load(f)
-
-DB_CONFIG = config["redshift"]
-
+# ========================
 # Logging
+# ========================
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - [%(levelname)s] - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-def get_connection():
-    """
-    Establish a connection to Redshift
-    """
-    try:
-        conn = psycopg2.connect(
-            dbname=DB_CONFIG["database"],
-            user=DB_CONFIG["user"],
-            password=DB_CONFIG["password"],
-            host=DB_CONFIG["host"],
-            port=DB_CONFIG["port"],
+class LlamaConnector:
+    def __init__(self):
+        # Load configs from env
+        self.db_user = os.getenv("AWS_REDSHIFT_USER", "admin")
+        self.db_pass = os.getenv("AWS_REDSHIFT_PASS", "password")
+        self.db_host = os.getenv("AWS_REDSHIFT_HOST", "localhost")
+        self.db_port = os.getenv("AWS_REDSHIFT_PORT", "5439")
+        self.db_name = os.getenv("AWS_REDSHIFT_DB", "analytics")
+        self.openai_key = os.getenv("OPENAI_API_KEY")
+
+        if not self.openai_key:
+            raise RuntimeError("OPENAI_API_KEY is missing.")
+
+        # Init Redshift connection
+        conn_uri = (
+            f"redshift+psycopg2://{self.db_user}:{self.db_pass}@"
+            f"{self.db_host}:{self.db_port}/{self.db_name}"
         )
-        return conn
-    except Exception as e:
-        logger.error(f"Failed to connect to Redshift: {e}")
-        raise
+        try:
+            self.engine = create_engine(conn_uri)
+            self.sql_db = SQLDatabase(self.engine)
+            logger.info("✅ Connected to Redshift.")
+        except Exception as e:
+            logger.error(f"❌ Redshift connection failed: {e}")
+            raise
 
-def build_llama_connector():
-    """
-    Create an AI-powered SQL query engine with LlamaIndex
-    """
-    try:
-        # Wrap Redshift into a SQLDatabase object
-        conn = get_connection()
-        sql_database = SQLDatabase(conn)
-
-        # Use OpenAI as the LLM for query translation
-        llm = OpenAI(model="gpt-4", temperature=0)
-
-        # Context & indexing
+        # Init LLM + LlamaIndex
+        llm = OpenAI(api_key=self.openai_key, model="gpt-4")
         service_context = ServiceContext.from_defaults(llm=llm)
-        index = VectorStoreIndex.from_documents([], service_context=service_context)
 
-        # Natural language to SQL engine
-        query_engine = NLSQLTableQueryEngine(sql_database=sql_database, llm=llm)
+        try:
+            self.query_engine = NLSQLTableQueryEngine(
+                sql_database=self.sql_db,
+                service_context=service_context,
+                tables=None,  # all tables
+                synthesize_response=True,
+            )
+            logger.info("✅ LlamaIndex query engine ready.")
+        except Exception as e:
+            logger.error(f"❌ Failed to init query engine: {e}")
+            raise
 
-        logger.info("Llama Connector successfully initialized")
-        return query_engine
-
-    except Exception as e:
-        logger.error(f"Failed to build Llama Connector: {e}")
-        raise
-
-if __name__ == "__main__":
-    # Example usage
-    qe = build_llama_connector()
-    question = "Show me the top 10 customers by revenue last month"
-    response = qe.query(question)
-    print("Natural Language Query:", question)
-    print("Result:", response)
-
+    def run_query(self, question: str) -> str:
+        """Run a natural language query against Redshift via LlamaIndex."""
+        try:
+            logger.info(f"📥 Query: {question}")
+            response = self.query_engine.query(question)
+            return str(response)
+        except Exception as e:
+            logger.error(f"❌ Query failed: {e}")
+            raise
