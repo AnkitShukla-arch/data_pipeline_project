@@ -1,116 +1,134 @@
+# data_pipeline_project/ml/drift_detector.py
 import os
+import sys
 import json
+import logging
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score
+from typing import Dict, Any
 from scipy.stats import ks_2samp
-from datetime import datetime
-from logging_audit.audit_logger import get_logger
-from logging_audit.error_handler import ErrorHandler
-from lineage.metadata_tracker import MetadataTracker
-from ml.training_pipeline import train_and_register_model
+from sklearn.metrics import accuracy_score
 
-logger = get_logger(__name__)
-error_handler = ErrorHandler()
-metadata_tracker = MetadataTracker()
+# Directories
+ARTIFACTS_DIR = os.path.join("artifacts")
+MODEL_DIR = os.path.join(ARTIFACTS_DIR, "models")
+DRIFT_DIR = os.path.join(ARTIFACTS_DIR, "drift_reports")
 
-ARTIFACTS_DIR = "artifacts"
-MODELS_DIR = os.path.join(ARTIFACTS_DIR, "models")
-REGISTRY_FILE = os.path.join(ARTIFACTS_DIR, "registry", "registry.json")
+os.makedirs(DRIFT_DIR, exist_ok=True)
+
+logger = logging.getLogger("drift_detector")
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 
-class DriftDetector:
-    def __init__(self, threshold=0.05, accuracy_drop=0.1):
-        """
-        :param threshold: p-value threshold for data drift (Kolmogorov-Smirnov test)
-        :param accuracy_drop: acceptable drop in accuracy before retraining
-        """
-        self.threshold = threshold
-        self.accuracy_drop = accuracy_drop
+def detect_data_drift(
+    baseline_data: pd.DataFrame,
+    new_data: pd.DataFrame,
+    threshold: float = 0.05
+) -> Dict[str, Any]:
+    """
+    Detects data drift using Kolmogorov-Smirnov test.
+    """
+    drift_report = {"data_drift": False, "details": {}}
 
-    def _load_latest_model(self):
-        if not os.path.exists(REGISTRY_FILE):
-            logger.warning("No registry found, training first model.")
-            return None, None
+    for col in baseline_data.columns:
+        if col not in new_data.columns:
+            continue
+        try:
+            stat, p_value = ks_2samp(
+                baseline_data[col].dropna(), new_data[col].dropna()
+            )
+            drift_report["details"][col] = {"p_value": float(p_value)}
+            if p_value < threshold:
+                drift_report["data_drift"] = True
+                drift_report["details"][col]["drift_detected"] = True
+            else:
+                drift_report["details"][col]["drift_detected"] = False
+        except Exception as e:
+            drift_report["details"][col] = {"error": str(e)}
 
-        with open(REGISTRY_FILE, "r") as f:
-            registry = json.load(f)
+    return drift_report
 
-        if not registry["models"]:
-            logger.warning("Registry empty, training first model.")
-            return None, None
 
-        latest_model = registry["models"][-1]
-        model_path = latest_model["path"]
-        return joblib.load(model_path), latest_model
+def detect_model_drift(
+    model_path: str,
+    baseline_data: pd.DataFrame,
+    new_data: pd.DataFrame,
+    target_col: str
+) -> Dict[str, Any]:
+    """
+    Detects model drift by comparing accuracy on baseline vs. new data.
+    """
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found: {model_path}")
 
-    def check_data_drift(self, reference_data, new_data):
-        drifted_features = []
-        for col in reference_data.columns:
-            if col not in new_data.columns:
-                continue
-            stat, p_value = ks_2samp(reference_data[col], new_data[col])
-            if p_value < self.threshold:
-                drifted_features.append(col)
-        return drifted_features
+    model = joblib.load(model_path)
 
-    def check_model_drift(self, model, X_ref, y_ref, X_new, y_new):
-        ref_acc = accuracy_score(y_ref, model.predict(X_ref))
-        new_acc = accuracy_score(y_new, model.predict(X_new))
-        drift = (ref_acc - new_acc) > self.accuracy_drop
-        return drift, ref_acc, new_acc
+    baseline_X = baseline_data.drop(columns=[target_col])
+    baseline_y = baseline_data[target_col]
+    new_X = new_data.drop(columns=[target_col])
+    new_y = new_data[target_col]
 
-    @error_handler.handle_errors
-    def monitor_and_retrain(self, reference_data, new_data, target_col="target"):
-        model, latest_meta = self._load_latest_model()
+    baseline_acc = accuracy_score(baseline_y, model.predict(baseline_X))
+    new_acc = accuracy_score(new_y, model.predict(new_X))
 
-        if model is None:
-            logger.info("No model found. Training initial model.")
-            train_and_register_model(reference_data, target_col)
-            return
+    drift_detected = new_acc < (baseline_acc - 0.1)  # 10% drop tolerance
 
-        # Split
-        X_ref, y_ref = reference_data.drop(columns=[target_col]), reference_data[target_col]
-        X_new, y_new = new_data.drop(columns=[target_col]), new_data[target_col]
+    return {
+        "model_drift": drift_detected,
+        "baseline_accuracy": float(baseline_acc),
+        "new_accuracy": float(new_acc),
+        "threshold": 0.1,
+    }
 
-        # Data drift
-        drifted = self.check_data_drift(X_ref, X_new)
-        if drifted:
-            logger.warning(f"Data drift detected in features: {drifted}")
 
-        # Model drift
-        model_drift, ref_acc, new_acc = self.check_model_drift(model, X_ref, y_ref, X_new, y_new)
-        if model_drift:
-            logger.warning(f"Model drift detected: ref_acc={ref_acc}, new_acc={new_acc}")
+def run_drift_check(
+    baseline_csv: str,
+    new_csv: str,
+    model_path: str,
+    target_col: str
+) -> Dict[str, Any]:
+    """
+    Runs both data drift and model drift detection, saves JSON report.
+    """
+    baseline_data = pd.read_csv(baseline_csv)
+    new_data = pd.read_csv(new_csv)
 
-        if drifted or model_drift:
-            logger.info("Retraining model due to drift...")
-            train_and_register_model(pd.concat([reference_data, new_data]), target_col)
-            metadata_tracker.track("model_retrain", {
-                "drifted_features": drifted,
-                "ref_accuracy": ref_acc,
-                "new_accuracy": new_acc,
-                "retrain_time": datetime.utcnow().isoformat()
-            })
-        else:
-            logger.info("No drift detected. Model is stable.")
+    data_drift_report = detect_data_drift(baseline_data, new_data)
+    model_drift_report = detect_model_drift(model_path, baseline_data, new_data, target_col)
+
+    report = {
+        "data_drift": data_drift_report,
+        "model_drift": model_drift_report,
+    }
+
+    report_path = os.path.join(
+        DRIFT_DIR, f"drift_report_{os.path.basename(model_path)}.json"
+    )
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2)
+
+    logger.info(f"Drift report saved at {report_path}")
+    return report
 
 
 if __name__ == "__main__":
-    # Example run
-    ref = pd.DataFrame({
-        "feature1": np.random.normal(0, 1, 1000),
-        "feature2": np.random.normal(5, 2, 1000),
-        "target": np.random.choice([0, 1], size=1000)
-    })
+    if len(sys.argv) < 4:
+        print("Usage: python ml/drift_detector.py <baseline_csv> <new_csv> <model_path> [target_col]")
+        sys.exit(1)
 
-    new = pd.DataFrame({
-        "feature1": np.random.normal(1, 1, 1000),  # shifted mean → drift
-        "feature2": np.random.normal(5, 2, 1000),
-        "target": np.random.choice([0, 1], size=1000)
-    })
+    baseline_csv = sys.argv[1]
+    new_csv = sys.argv[2]
+    model_path = sys.argv[3]
+    target_col = sys.argv[4] if len(sys.argv) > 4 else "target"
 
-    detector = DriftDetector()
-    detector.monitor_and_retrain(ref, new, target_col="target")
-
+    try:
+        report = run_drift_check(baseline_csv, new_csv, model_path, target_col)
+        print("DRIFT CHECK REPORT:", json.dumps(report, indent=2))
+    except Exception as e:
+        logger.exception(f"Drift check failed: {e}")
+        sys.exit(1)
