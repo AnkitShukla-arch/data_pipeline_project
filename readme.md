@@ -7,6 +7,23 @@
 
 ---
 
+📌 Problem Statement
+
+Modern enterprises struggle with scalable data ingestion, transformation, monitoring, and querying.
+This project demonstrates an end-to-end automated ML pipeline that:
+
+Ingests raw data.
+
+Cleans & preprocesses it.
+
+Trains & monitors ML models.
+
+Stores data in a warehouse (AWS/BigQuery-ready).
+
+Enables natural language querying with LlamaIndex.
+
+---
+
 ## 📖 Overview
 > **<Llama_data_pipeline>** is a futuristic, scalable, and resilient **data pipeline & monitoring system**.  
 It ingests data from multiple sources, processes it in real-time, and delivers insights via interactive dashboards — with built-in **AI-powered anomaly detection**.
@@ -46,11 +63,14 @@ docker-compose up --build
 # Access dashboard
 http://localhost:8501
 ```
-flowchart LR
-    A[Data Sources] -->|Ingest| B[Kafka]
-    B --> C[Spark Processor]
-    C --> D[Database]
-    D --> F[ML Model for Anomaly Detection]
+flowchart TD
+    A[Data Source] --> B[Ingestion Layer]
+    B --> C[Transformation & Preprocessing]
+    C --> D[Model Training & Evaluation]
+    D --> E[Monitoring & Lineage Tracking]
+    E --> F[Data Warehouse (AWS/BigQuery)]
+    F --> G[LlamaIndex Query Layer]
+    G --> H[User Query in Natural Language]
 
 -----
 
@@ -85,6 +105,54 @@ flowchart LR
 Contributions, issues, and feature requests are welcome!
 Open an issue or submit a PR to collaborate.
 
+---
+
+git clone https://github.com/AnkitShukla-arch/data_pipeline_project.git
+cd data_pipeline_project
+
+---
+
+from query.llama_query import query_pipeline  
+
+print(query_pipeline("Show me the top 10 anomalies in last 7 days"))
+
+---
+
+📊 Monitoring
+
+Airflow UI for DAG tracking.
+
+Prometheus + Grafana for metrics.
+
+Custom alerts via Slack/Email.
+
+📂 Details: docs/monitoring.md
+
+---
+
+🤖 ML & Querying
+
+ML model: Classification pipeline (scikit-learn)
+
+LlamaIndex allows:
+
+“Which features contribute most to churn?”
+
+“Show latest anomalies in ingestion layer.”
+
+📂 Details: docs/llamaindex_integration.md
+
+---
+
+📈 CI/CD
+
+GitHub Actions for CI.
+
+Auto test + lint on every PR.
+
+Auto-deploy to cloud (future scope).
+
+---
 
 📬 Contact
 
