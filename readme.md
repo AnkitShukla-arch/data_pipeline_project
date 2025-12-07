@@ -59,11 +59,17 @@ http://localhost:8501
 ```
 flowchart TD
     A[Data Source] --> B[Ingestion Layer]
+    
     B --> C[Transformation & Preprocessing]
+    
     C --> D[Model Training & Evaluation]
+    
     D --> E[Monitoring & Lineage Tracking]
+    
     E --> F[Data Warehouse (AWS/BigQuery)]
+    
     F --> G[LlamaIndex Query Layer]
+    
     G --> H[User Query in Natural Language]
 
 -----
