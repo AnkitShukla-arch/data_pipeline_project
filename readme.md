@@ -114,12 +114,6 @@ cd data_pipeline_project
 
 ---
 
-from query.llama_query import query_pipeline  
-
-print(query_pipeline("Show me the top 10 anomalies in last 7 days"))
-
----
-
 📊 Monitoring
 
 Airflow UI for DAG tracking.
