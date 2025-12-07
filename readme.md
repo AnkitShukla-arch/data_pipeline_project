@@ -1,10 +1,5 @@
 <h1 align="center">🚀 <Llama_data_pipeline>: Next-Gen Data Pipeline & Analytics System </h1>
 
-
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)]()
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)]()
-[![License](https://img.shields.io/badge/License-MIT-green.svg)]()
-
 ---
 
 📌 Problem Statement
