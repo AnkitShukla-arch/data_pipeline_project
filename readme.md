@@ -57,7 +57,9 @@ docker-compose up --build
 # Access dashboard
 http://localhost:8501
 ```
+
 flowchart TD
+
     A[Data Source] --> B[Ingestion Layer]
     
     B --> C[Transformation & Preprocessing]
