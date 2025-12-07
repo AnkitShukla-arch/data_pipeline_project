@@ -2,7 +2,6 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)]()
-[![CI/CD](https://github.com/<AnkitShukla-arch>/<data_pipeline_project>/actions/workflows/ci.yml/badge.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 
 ---
