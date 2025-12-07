@@ -109,11 +109,6 @@ Open an issue or submit a PR to collaborate.
 
 ---
 
-git clone https://github.com/AnkitShukla-arch/data_pipeline_project.git
-cd data_pipeline_project
-
----
-
 📊 Monitoring
 
 Airflow UI for DAG tracking.
